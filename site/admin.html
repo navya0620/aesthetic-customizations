@@ -1,0 +1,70 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Owner dashboard</title><link rel="icon" href="logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Jost:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head><body><div class="aurora"></div><div class="wrap">
+<div class="bar"><h2>🌸 Owner dashboard</h2><div><a class="btn ghost" href="index.html">View website</a> <button class="btn ghost" id="out" hidden>Sign out</button></div></div>
+<p class="msg" id="setup" hidden>Firebase is not set up yet. Fill in config.js first.</p>
+<div class="panel" id="login"><h3>Owner sign in</h3>
+<label for="em">Email</label><input id="em" type="email" autocomplete="username">
+<label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
+<p style="margin-top:14px"><button class="btn" id="go">Sign in</button></p><p class="msg" id="lm"></p></div>
+<div id="app" hidden>
+<div class="stats"><div class="stat"><b id="tot">0</b>Total products</div><div class="stat"><b id="nc">0</b>Categories in use</div></div>
+<div class="tool"><button class="btn" id="new">+ Add product</button><div class="chips" id="chips"></div></div>
+<div class="grid" id="list"></div>
+<p style="margin:22px 0"><button class="btn ghost" id="bk">Download backup</button></p></div></div>
+<dialog id="dlg"><div class="fm"><button class="x" id="cl" aria-label="Close">×</button><h2 id="ft">Add product</h2>
+<label for="nm">Name</label><input id="nm">
+<label for="ct">Category</label><select id="ct"></select>
+<label for="pr">Starting price (₹)</label><input id="pr" type="number" min="0">
+<label for="st">Stock</label><select id="st"><option>In stock</option><option>Made to order</option><option>Sold out</option></select>
+<label for="ds">Description</label><textarea id="ds" rows="3"></textarea>
+<label for="im">Photo</label><input id="im" type="file" accept="image/*">
+<button class="btn" id="save">Save product</button><p class="msg" id="am"></p></div></dialog>
+<script type="module">
+import {CONFIG,configured,optimize,esc,FB} from './config.js';
+const $=id=>document.getElementById(id);
+if(!configured){$("setup").hidden=false;$("login").hidden=true}else{
+const {initializeApp}=await import(FB+"firebase-app.js");
+const A=await import(FB+"firebase-auth.js"),F=await import(FB+"firebase-firestore.js");
+const app=initializeApp(CONFIG.firebase),auth=A.getAuth(app),db=F.getFirestore(app),col=F.collection(db,"products");
+let rows=[],extra=[],f="All",edit=null;
+const cats=()=>[...new Set([...CONFIG.categories,...extra,...rows.map(r=>r.category)])];
+const n=c=>c=="All"?rows.length:rows.filter(r=>r.category==c).length;
+$("go").onclick=()=>A.signInWithEmailAndPassword(auth,$("em").value,$("pw").value).catch(()=>$("lm").textContent="Wrong email or password.");
+$("out").onclick=()=>A.signOut(auth);
+A.onAuthStateChanged(auth,u=>{$("login").hidden=!!u;$("app").hidden=!u;$("out").hidden=!u;if(u)load()});
+async function load(){rows=(await F.getDocs(F.query(col,F.orderBy("createdAt","desc")))).docs.map(d=>({id:d.id,...d.data()}));draw()}
+function draw(){
+ $("tot").textContent=rows.length;$("nc").textContent=new Set(rows.map(r=>r.category)).size;
+ $("chips").innerHTML=["All",...cats()].map(c=>`<button class="chip ${c==f?"on":""}" data-c="${esc(c)}">${esc(c)} (${n(c)})</button>`).join("");
+ const l=rows.filter(r=>f=="All"||r.category==f);
+ $("list").innerHTML=l.length?l.map(p=>`<div class="row">${p.image?`<img class="ph" src="${esc(optimize(p.image,400))}" alt="">`:'<div class="ph"></div>'}<b>${esc(p.name)}</b><span>₹${esc(p.price)} · ${esc(p.category)}</span>
+ <select data-s="${p.id}">${["In stock","Made to order","Sold out"].map(s=>`<option ${s==p.stock?"selected":""}>${s}</option>`).join("")}</select>
+ <div class="acts"><button class="btn ghost" data-e="${p.id}">Edit</button><button class="btn ghost" data-d="${p.id}">Delete</button></div></div>`).join(""):'<p class="empty">No products here yet. Press "Add product".</p>';
+}
+function fill(sel){$("ct").innerHTML=cats().map(c=>`<option ${c==sel?"selected":""}>${esc(c)}</option>`).join("")+'<option value="__new">+ Add new category</option>'}
+$("ct").onchange=()=>{if($("ct").value=="__new"){const c=(prompt("New category name")||"").trim();if(c&&!cats().includes(c))extra.push(c);fill(c||cats()[0])}};
+function show(p){edit=p;$("ft").textContent=p?"Edit product":"Add product";fill(p?.category);
+ $("nm").value=p?.name||"";$("pr").value=p?.price??"";$("st").value=p?.stock||"In stock";$("ds").value=p?.description||"";$("im").value="";$("am").textContent="";$("dlg").showModal()}
+$("new").onclick=()=>show(null);$("cl").onclick=()=>$("dlg").close();
+$("chips").onclick=e=>{if(e.target.dataset.c){f=e.target.dataset.c;draw()}};
+$("list").onchange=async e=>{if(e.target.dataset.s)await F.updateDoc(F.doc(db,"products",e.target.dataset.s),{stock:e.target.value})};
+$("list").onclick=async e=>{const d=e.target.dataset;
+ if(d.e)show(rows.find(r=>r.id==d.e));
+ if(d.d&&confirm("Delete this product?")){await F.deleteDoc(F.doc(db,"products",d.d));load()}};
+$("save").onclick=async()=>{
+ const m=$("am"),file=$("im").files[0];
+ if(!$("nm").value||$("pr").value==="")return m.textContent="Enter a name and a price.";
+ try{m.textContent="Saving…";let image=edit?.image||"";
+  if(file){const fd=new FormData();fd.append("file",file);fd.append("upload_preset",CONFIG.cloudinary.uploadPreset);
+   const j=await(await fetch(`https://api.cloudinary.com/v1_1/${CONFIG.cloudinary.cloudName}/image/upload`,{method:"POST",body:fd})).json();
+   if(!j.secure_url)throw new Error(j.error?.message||"Photo upload failed");image=j.secure_url}
+  const data={name:$("nm").value,category:$("ct").value,price:Number($("pr").value),stock:$("st").value,description:$("ds").value,image};
+  edit?await F.updateDoc(F.doc(db,"products",edit.id),data):await F.addDoc(col,{...data,createdAt:F.serverTimestamp()});
+  $("dlg").close();load();
+ }catch(err){m.textContent="Could not save: "+err.message}};
+$("bk").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(rows,null,2)],{type:"application/json"}));a.download="products-backup.json";a.click()};
+}
+</script></body></html>

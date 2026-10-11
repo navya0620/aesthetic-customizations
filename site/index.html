@@ -1,0 +1,82 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D Resin Art | Aesthetic Customizations</title>
+<meta name="description" content="Handmade resin art: keychains, pendants, earrings, bracelets, coasters, frames and customized gifts.">
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Great+Vibes&family=Jost:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="aurora"></div><div class="glow" id="glow"></div>
+<nav><div class="wrap"><b>Aesthetic Customizations</b><div><a href="#shop">Shop</a><a href="#about">About</a><a class="keep" href="#contact">Contact</a></div></div></nav>
+<header class="hero"><div class="wrap">
+<img src="logo.png" alt="3D Resin Art logo" width="230" height="230">
+<h1>Handmade resin art, made to be treasured</h1>
+<p>Glassy ocean blues, gold flakes and real flowers, set in resin. Pick a piece you love or ask for something made just for you.</p>
+<a class="btn" href="#shop">Browse the collection</a> <a class="btn ghost" id="ctaWa" href="#">Order a custom piece</a>
+</div></header>
+<section id="shop"><div class="wrap"><h2>Our collection</h2><p class="sub">Every piece is poured by hand, so no two are exactly alike.</p>
+<div class="chips" id="chips"></div><div class="grid" id="grid"></div></div></section>
+<section class="about" id="about"><div class="wrap"><h2>About us</h2>
+<p>3D Resin Art is a small studio making keychains, jewellery, coasters, frames and personalised gifts. Watch how we pour and finish our pieces on YouTube.</p>
+<div class="links"><a class="btn ghost" id="yt" target="_blank" rel="noopener">Watch on YouTube</a></div></div></section>
+<section id="contact"><div class="wrap"><h2>Order or ask us anything</h2><p class="sub">Message us on WhatsApp or Instagram. We usually reply the same day.</p>
+<div class="links"><a class="btn wa" id="wa" target="_blank" rel="noopener">Chat on WhatsApp</a><a class="btn ghost" id="ig" target="_blank" rel="noopener">Follow on Instagram</a><a class="btn ghost" id="yt2" target="_blank" rel="noopener">YouTube channel</a></div></div></section>
+<footer>© 3D Resin Art · Aesthetic Customizations<br><a class="own" href="admin.html">Owner login</a></footer>
+<a class="fab" id="fab" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">✆</a>
+<dialog id="dlg"></dialog>
+<script type="module">
+import {CONFIG,configured,wa,optimize,esc,FB} from './config.js';
+const $=id=>document.getElementById(id);
+const hi=wa("Hi! I found you on your website and would like to know more.");
+["ctaWa","wa","fab"].forEach(i=>$(i).href=hi);
+$("ig").href=CONFIG.instagram;$("yt").href=$("yt2").href=CONFIG.youtube;
+let items=[],cat="All";
+const demo=CONFIG.categories.slice(0,4).map((c,i)=>({id:i,name:"Sample "+c,category:c,price:199,stock:"In stock",description:"Sample item. Add real products from the admin page.",image:""}));
+function render(){
+ const cats=["All",...new Set(items.map(p=>p.category))];
+ $("chips").innerHTML=cats.map(c=>`<button class="chip ${c==cat?"on":""}" data-c="${esc(c)}">${esc(c)}</button>`).join("");
+ const list=items.filter(p=>cat=="All"||p.category==cat);
+ $("grid").innerHTML=list.length?list.map(p=>`<article class="card" tabindex="0" data-id="${esc(p.id)}">${img(p,500)}<div><h3>${esc(p.name)}</h3><div class="price">Starting from ₹${esc(p.price)}</div><span class="tag">${esc(p.stock)}</span></div></article>`).join(""):'<p class="empty">New pieces are on the way. Message us for custom orders.</p>';
+}
+const img=(p,w)=>p.image?`<img class="ph" src="${esc(optimize(p.image,w))}" alt="${esc(p.name)}" loading="lazy">`:'<div class="ph"></div>';
+$("chips").onclick=e=>{if(e.target.dataset.c){cat=e.target.dataset.c;render()}};
+function open(id){
+ const p=items.find(x=>String(x.id)==id);if(!p)return;
+ const msg=wa(`Hi! I'm interested in "${p.name}" (starting from ₹${p.price}). Is it available?`);
+ $("dlg").innerHTML=`<button class="x" aria-label="Close">×</button><div class="dlg">${img(p,800)}<div><h2>${esc(p.name)}</h2><div class="price">Starting from ₹${esc(p.price)} · ${esc(p.category)}</div><span class="tag">${esc(p.stock)}</span><p>${esc(p.description)}</p><a class="btn wa" href="${msg}" target="_blank" rel="noopener">Order on WhatsApp</a><a class="btn ghost" href="${CONFIG.instagram}" target="_blank" rel="noopener">Message on Instagram</a></div></div>`;
+ $("dlg").showModal();$("dlg").querySelector(".x").onclick=()=>$("dlg").close();
+}
+$("dlg").onclick=e=>{if(e.target==$("dlg"))$("dlg").close()};
+$("grid").onclick=e=>{const c=e.target.closest(".card");if(c)open(c.dataset.id)};
+$("grid").onkeydown=e=>{if(e.key=="Enter"&&e.target.dataset.id)open(e.target.dataset.id)};
+(async()=>{
+ if(!configured){items=demo;return render()}
+ try{
+  const {initializeApp}=await import(FB+"firebase-app.js");
+  const {getFirestore,collection,getDocs,query,orderBy}=await import(FB+"firebase-firestore.js");
+  const db=getFirestore(initializeApp(CONFIG.firebase));
+  items=(await getDocs(query(collection(db,"products"),orderBy("createdAt","desc")))).docs.map(d=>({id:d.id,...d.data()}));
+ }catch(e){console.error(e)}
+ render();
+})();
+const g=$("glow");
+addEventListener("pointermove",e=>{g.style.left=e.clientX+"px";g.style.top=e.clientY+"px"});
+const calm=matchMedia("(prefers-reduced-motion:reduce)").matches;
+$("grid").addEventListener("pointermove",e=>{
+ const c=e.target.closest(".card");if(!c||calm)return;
+ const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+ c.style.setProperty("--mx",x*100+"%");c.style.setProperty("--my",y*100+"%");
+ c.style.transform=`perspective(700px) rotateX(${(.5-y)*10}deg) rotateY(${(x-.5)*12}deg) translateY(-6px)`;
+});
+$("grid").addEventListener("mouseout",e=>{const c=e.target.closest(".card");if(c&&!c.contains(e.relatedTarget))c.style.transform=""});
+if(!calm){
+ const box=document.createElement("div");box.id="petals";
+ for(let i=0;i<22;i++){
+  const p=document.createElement("i");p.className="petal";
+  p.style.cssText=`left:${Math.random()*100}%;--s:${8+Math.random()*10}px;--d:${9+Math.random()*9}s;--w:${-Math.random()*18}s;--x:${(Math.random()-.5)*160}px`;
+  box.appendChild(p);
+ }
+ document.body.appendChild(box);
+}
+</script></body></html>
