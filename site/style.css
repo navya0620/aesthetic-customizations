@@ -91,3 +91,17 @@ select option{background:#0d1424;color:var(--txt)}
  90%{opacity:.8}
  100%{opacity:0;transform:translate(calc(var(--x)*-.5),115vh) rotate(360deg) rotateX(360deg)}
 }
+/* orders + revenue */
+dialog{max-height:92vh;overflow:auto}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:18px;background:var(--glass);backdrop-filter:blur(14px)}
+table{width:100%;border-collapse:collapse;font-size:.9rem;white-space:nowrap}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--gold);font-weight:500}
+td select{padding:5px;border-radius:8px}
+.bars{display:flex;gap:12px;align-items:flex-end;min-height:150px;margin-top:10px}
+.mb{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--mute)}
+.mb i{width:100%;min-height:3px;border-radius:8px 8px 0 0;background:linear-gradient(var(--gold),#2dd4bf88)}
+.mb small{font-size:.75rem}
+input[type=date]{color-scheme:dark;cursor:pointer}
+input[type=date]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.9}
+[hidden]{display:none!important}
