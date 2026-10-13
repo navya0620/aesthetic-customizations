@@ -9,11 +9,32 @@
 <label for="em">Email</label><input id="em" type="email" autocomplete="username">
 <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
 <p style="margin-top:14px"><button class="btn" id="go">Sign in</button></p><p class="msg" id="lm"></p></div>
-<div id="app" hidden>
+<!--<div id="app" hidden>
 <div class="stats"><div class="stat"><b id="tot">0</b>Total products</div><div class="stat"><b id="nc">0</b>Categories in use</div></div>
 <div class="tool"><button class="btn" id="new">+ Add product</button><div class="chips" id="chips"></div></div>
 <div class="grid" id="list"></div>
-<p style="margin:22px 0"><button class="btn ghost" id="bk">Download backup</button></p></div></div>
+<p style="margin:22px 0"><button class="btn ghost" id="bk">Download backup</button></p></div>--><div id="app" hidden>
+<div class="chips" style="justify-content:flex-start"><button class="chip on" id="tp">Products</button><button class="chip" id="to">Orders &amp; revenue</button></div>
+
+<div id="pv">
+<div class="stats"><div class="stat"><b id="tot">0</b>Total products</div><div class="stat"><b id="nc">0</b>Categories in use</div></div>
+<div class="tool"><button class="btn" id="new">+ Add product</button><div class="chips" id="chips"></div></div>
+<div class="grid" id="list"></div>
+<p style="margin:22px 0"><button class="btn ghost" id="bk">Download backup</button></p>
+</div>
+
+<div id="ov" hidden>
+<div class="stats">
+ <div class="stat"><b id="oc">0</b>Total orders</div>
+ <div class="stat"><b id="rv">₹0</b>Total revenue</div>
+ <div class="stat"><b id="mr">₹0</b>This month</div>
+ <div class="stat"><b id="pd">0</b>Not delivered yet</div>
+</div>
+<div class="panel" style="max-width:none"><h3>Revenue, last 6 months</h3><div class="bars" id="bars"></div></div>
+<div class="tool"><button class="btn" id="onew">+ New order</button><button class="btn ghost" id="ob">Download orders backup</button></div>
+<div class="tw"><table><thead><tr><th>No</th><th>Name</th><th>Product</th><th>Date</th><th>Location</th><th>Amount</th><th>Delivery</th><th>Total</th><th>Payment</th><th>Dispatch</th><th>Delivery date</th><th>Status</th><th></th></tr></thead><tbody id="ot"></tbody></table></div>
+</div>
+</div></div>
 <dialog id="dlg"><div class="fm"><button class="x" id="cl" aria-label="Close">×</button><h2 id="ft">Add product</h2>
 <label for="nm">Name</label><input id="nm">
 <label for="ct">Category</label><select id="ct"></select>
@@ -22,6 +43,19 @@
 <label for="ds">Description</label><textarea id="ds" rows="3"></textarea>
 <label for="im">Photo</label><input id="im" type="file" accept="image/*">
 <button class="btn" id="save">Save product</button><p class="msg" id="am"></p></div></dialog>
+<dialog id="odlg"><div class="fm"><button class="x" id="ocl" aria-label="Close">×</button><h2 id="oft">New order</h2>
+<label for="oname">Customer name</label><input id="oname">
+<label for="oprod">Product name</label><input id="oprod" list="plist"><datalist id="plist"></datalist>
+<label for="odate">Order date</label><input id="odate" type="date">
+<label for="oloc">Location</label><input id="oloc">
+<label for="oamt">Amount (₹)</label><input id="oamt" type="number" min="0">
+<label for="odel">Delivery charges (₹)</label><input id="odel" type="number" min="0">
+<label for="otot">Total (₹)</label><input id="otot" readonly>
+<label for="opay">Payment method</label><select id="opay"><option>Cash</option><option>UPI</option><option>Card</option><option>Bank transfer</option></select>
+<label for="odisp">Dispatch date</label><input id="odisp" type="date">
+<label for="odlv">Delivery date</label><input id="odlv" type="date">
+<label for="ost">Delivered or not</label><select id="ost"><option>Not delivered</option><option>Delivered</option></select>
+<button class="btn" id="osave">Save order</button><p class="msg" id="om"></p></div></dialog>
 <script type="module">
 import {CONFIG,configured,optimize,esc,FB} from './config.js';
 const $=id=>document.getElementById(id);
@@ -32,8 +66,8 @@ const app=initializeApp(CONFIG.firebase),auth=A.getAuth(app),db=F.getFirestore(a
 let rows=[],extra=[],f="All",edit=null;
 const cats=()=>[...new Set([...CONFIG.categories,...extra,...rows.map(r=>r.category)])];
 const n=c=>c=="All"?rows.length:rows.filter(r=>r.category==c).length;
-$("go").onclick=()=>A.signInWithEmailAndPassword(auth,$("em").value,$("pw").value).catch(()=>$("lm").textContent="Wrong email or password.");
-$("out").onclick=()=>A.signOut(auth);
+$("go").onclick=()=>A.signInWithEmailAndPassword(auth,$("em").value.trim(),$("pw").value).catch(e=>$("lm").textContent="Sign in failed: "+e.code);
+$("out").onclick=()=>A.signOut(auth).then(()=>location.href="index.html");
 A.onAuthStateChanged(auth,u=>{$("login").hidden=!!u;$("app").hidden=!u;$("out").hidden=!u;if(u)load()});
 async function load(){rows=(await F.getDocs(F.query(col,F.orderBy("createdAt","desc")))).docs.map(d=>({id:d.id,...d.data()}));draw()}
 function draw(){
@@ -66,5 +100,45 @@ $("save").onclick=async()=>{
   $("dlg").close();load();
  }catch(err){m.textContent="Could not save: "+err.message}};
 $("bk").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(rows,null,2)],{type:"application/json"}));a.download="products-backup.json";a.click()};
+const oc=F.collection(db,"orders");let ords=[],oe=null;
+const rs=n=>"₹"+Number(n||0).toLocaleString("en-IN");
+const val=id=>$(id).value;
+const calc=()=>$("otot").value=Number(val("oamt")||0)+Number(val("odel")||0);
+["oamt","odel"].forEach(i=>$(i).oninput=calc);
+const tabs=v=>{$("pv").hidden=v;$("ov").hidden=!v;$("tp").classList.toggle("on",!v);$("to").classList.toggle("on",v);if(v)loadO()};
+$("tp").onclick=()=>tabs(false);$("to").onclick=()=>tabs(true);
+async function loadO(){
+ ords=(await F.getDocs(F.query(oc,F.orderBy("no","desc")))).docs.map(d=>({id:d.id,...d.data()}));
+ const sum=a=>a.reduce((s,o)=>s+Number(o.total||0),0);
+ const key=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+ const t=new Date(),mk=o=>(o.date||"").slice(0,7);
+ $("oc").textContent=ords.length;$("rv").textContent=rs(sum(ords));
+ $("mr").textContent=rs(sum(ords.filter(o=>mk(o)==key(t))));
+ $("pd").textContent=ords.filter(o=>o.status!="Delivered").length;
+ const ms=[...Array(6)].map((_,i)=>key(new Date(t.getFullYear(),t.getMonth()-5+i,1)));
+ const vs=ms.map(m=>sum(ords.filter(o=>mk(o)==m))),mx=Math.max(1,...vs);
+ $("bars").innerHTML=ms.map((m,i)=>`<div class="mb"><i style="height:${Math.round(vs[i]/mx*110)}px"></i><small>${m.slice(5)}/${m.slice(2,4)}</small><small>${rs(vs[i])}</small></div>`).join("");
+ $("ot").innerHTML=ords.map(o=>`<tr><td>${o.no}</td><td>${esc(o.name)}</td><td>${esc(o.product)}</td><td>${esc(o.date)}</td><td>${esc(o.location)}</td><td>${rs(o.amount)}</td><td>${rs(o.delivery)}</td><td>${rs(o.total)}</td><td>${esc(o.pay)}</td><td>${esc(o.dispatch)}</td><td>${esc(o.deliv)}</td>
+ <td><select data-os="${o.id}">${["Not delivered","Delivered"].map(s=>`<option ${s==o.status?"selected":""}>${s}</option>`).join("")}</select></td>
+ <td><button class="btn ghost" data-oe="${o.id}">Edit</button> <button class="btn ghost" data-od="${o.id}">Delete</button></td></tr>`).join("")||'<tr><td colspan="13">No orders yet. Press "+ New order".</td></tr>';
+}
+function oshow(o){oe=o;$("oft").textContent=o?"Edit order":"New order";
+ $("plist").innerHTML=rows.map(p=>`<option value="${esc(p.name)}">`).join("");
+ const m={oname:"name",oprod:"product",odate:"date",oloc:"location",oamt:"amount",odel:"delivery",opay:"pay",odisp:"dispatch",odlv:"deliv",ost:"status"};
+ const def={odel:0,opay:"Cash",ost:"Not delivered",odate:new Date().toLocaleDateString("en-CA")};
+ for(const k in m)$(k).value=o?o[m[k]]??"":def[k]??"";
+ calc();$("om").textContent="";$("odlg").showModal()}
+$("onew").onclick=()=>oshow(null);$("ocl").onclick=()=>$("odlg").close();
+$("osave").onclick=async()=>{
+ if(!val("oname")||!val("oprod")||val("oamt")==="")return $("om").textContent="Enter name, product and amount.";
+ const d={name:val("oname"),product:val("oprod"),date:val("odate"),location:val("oloc"),amount:Number(val("oamt")),delivery:Number(val("odel")||0),total:Number(val("otot")),pay:val("opay"),dispatch:val("odisp"),deliv:val("odlv"),status:val("ost")};
+ try{oe?await F.updateDoc(F.doc(db,"orders",oe.id),d):await F.addDoc(oc,{...d,no:Math.max(0,...ords.map(o=>o.no||0))+1});$("odlg").close();loadO()}
+ catch(e){$("om").textContent="Could not save: "+e.message}};
+$("ot").onchange=async e=>{if(e.target.dataset.os){await F.updateDoc(F.doc(db,"orders",e.target.dataset.os),{status:e.target.value});loadO()}};
+$("ot").onclick=async e=>{const d=e.target.dataset;
+ if(d.oe)oshow(ords.find(o=>o.id==d.oe));
+ if(d.od&&confirm("Delete this order?")){await F.deleteDoc(F.doc(db,"orders",d.od));loadO()}};
+$("ob").onclick=()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(ords,null,2)],{type:"application/json"}));a.download="orders-backup.json";a.click()};
+["odate","odisp","odlv"].forEach(i=>$(i).addEventListener("click",e=>{try{e.currentTarget.showPicker()}catch(_){}}));
 }
 </script></body></html>
